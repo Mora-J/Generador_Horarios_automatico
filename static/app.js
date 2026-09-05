@@ -1,7 +1,7 @@
 const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const HORA_INICIO = 7;
 const HORA_FIN = 21;
-const PX_POR_HORA = 60;
+const PX_POR_HORA = 55;
 
 const COLORES = [
   "bg-blue-600 border-blue-700",
@@ -13,6 +13,7 @@ const COLORES = [
   "bg-indigo-600 border-indigo-700"
 ];
 
+// Estado local exclusivo de esta pestaña/cliente
 let todasLasMaterias = [];
 let materiasSeleccionadas = new Set();
 let combinaciones = [];
@@ -24,7 +25,7 @@ function initRejilla() {
   colHoras.innerHTML = "";
   for (let h = HORA_INICIO; h < HORA_FIN; h++) {
     const row = document.createElement("div");
-    row.className = "border-b flex items-start justify-center pt-1";
+    row.className = "border-b flex items-start justify-center pt-1 font-semibold text-xs text-slate-500";
     row.style.height = `${PX_POR_HORA}px`;
     row.textContent = `${h}:00`;
     colHoras.appendChild(row);
@@ -86,31 +87,25 @@ async function cargarPorCedula() {
       return;
     }
 
+    todasLasMaterias = data.materias || [];
+    materiasSeleccionadas.clear();
+
+    mapaColoresMaterias = {};
+    todasLasMaterias.forEach((m, idx) => {
+      mapaColoresMaterias[m.nombre] = COLORES[idx % COLORES.length];
+    });
+
+    renderizarListaMaterias();
+    await recalcularCombinaciones();
+    
     mostrarInfo(`Se cargaron ${data.total_cargadas} materias. Selecciona las que deseas cursar.`);
     input.value = "";
-    
-    // Al cargar por primera vez, desmarcamos todo para que el usuario elija sus materias
-    materiasSeleccionadas.clear();
-    await recargarMateriasDesdeBackend();
   } catch (err) {
     mostrarError("Error al conectar con el servidor.");
   } finally {
     btn.disabled = false;
     btn.textContent = "Consultar";
   }
-}
-
-async function recargarMateriasDesdeBackend() {
-  const resMat = await fetch("/api/materias");
-  todasLasMaterias = await resMat.json();
-  
-  mapaColoresMaterias = {};
-  todasLasMaterias.forEach((m, idx) => {
-    mapaColoresMaterias[m.nombre] = COLORES[idx % COLORES.length];
-  });
-
-  renderizarListaMaterias();
-  await recalcularCombinaciones();
 }
 
 function renderizarListaMaterias() {
@@ -139,7 +134,7 @@ function renderizarListaMaterias() {
           <input type="checkbox" ${estaChecked ? "checked" : ""} onchange="toggleMateria('${encodeURIComponent(m.nombre)}')" class="rounded text-blue-600 focus:ring-0">
           <span>${m.nombre}</span>
         </label>
-        <button onclick="eliminarMateria('${encodeURIComponent(m.nombre)}')" class="text-rose-500 hover:text-rose-700 text-xs px-1">✕</button>
+        <button onclick="eliminarMateriaLocal('${encodeURIComponent(m.nombre)}')" class="text-rose-500 hover:text-rose-700 text-xs px-1">✕</button>
       </div>
       <div class="pl-5 border-l-2 border-slate-100">${seccionesHTML}</div>
     `;
@@ -168,9 +163,9 @@ function seleccionarTodas(marcar) {
 }
 
 async function recalcularCombinaciones() {
-  const seleccionadasArray = Array.from(materiasSeleccionadas);
-  
-  if (seleccionadasArray.length === 0) {
+  const materiasParaEnviar = todasLasMaterias.filter(m => materiasSeleccionadas.has(m.nombre));
+
+  if (materiasParaEnviar.length === 0) {
     combinaciones = [];
     indiceActual = 0;
     actualizarVistaCombinacion();
@@ -180,7 +175,7 @@ async function recalcularCombinaciones() {
   const resCombos = await fetch("/api/combinaciones", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(seleccionadasArray)
+    body: JSON.stringify(materiasParaEnviar)
   });
 
   const dataCombos = await resCombos.json();
@@ -190,7 +185,7 @@ async function recalcularCombinaciones() {
   actualizarVistaCombinacion();
 }
 
-async function agregarMateriaManual() {
+function agregarMateriaManual() {
   const nombre = document.getElementById("mat-nombre").value.trim();
   const secNombre = document.getElementById("sec-nombre").value.trim();
   const profesor = document.getElementById("sec-profesor").value.trim() || "Por Asignar";
@@ -207,64 +202,62 @@ async function agregarMateriaManual() {
     return;
   }
 
-  const payload = {
-    nombre: nombre,
-    secciones: [{
-      nombre: secNombre,
-      profesor: profesor,
-      bloques: [{ dia: dia, inicio: inicio, fin: fin }]
-    }]
+  const nuevaSeccion = {
+    nombre: secNombre,
+    nrc: 0,
+    profesor: profesor,
+    bloques: [{ dia: dia, inicio: inicio, fin: fin }]
   };
 
-  const res = await fetch("/api/materias", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-    const error = await res.json();
-    mostrarError(error.detail || "Error al agregar materia");
-    return;
+  const materiaExistente = todasLasMaterias.find(m => m.nombre.toLowerCase() === nombre.toLowerCase());
+  if (materiaExistente) {
+    materiaExistente.secciones.push(nuevaSeccion);
+  } else {
+    todasLasMaterias.push({
+      nombre: nombre,
+      secciones: [nuevaSeccion]
+    });
+    mapaColoresMaterias[nombre] = COLORES[todasLasMaterias.length % COLORES.length];
   }
+
+  materiasSeleccionadas.add(nombre);
 
   document.getElementById("mat-nombre").value = "";
   document.getElementById("sec-nombre").value = "";
   document.getElementById("sec-profesor").value = "";
-  
-  materiasSeleccionadas.add(nombre);
-  recargarMateriasDesdeBackend();
+
+  renderizarListaMaterias();
+  recalcularCombinaciones();
 }
 
-async function eliminarMateria(nombreCodificado) {
-  const res = await fetch(`/api/materias/${nombreCodificado}`, { method: "DELETE" });
-  if (res.ok) {
-    const nombre = decodeURIComponent(nombreCodificado);
-    materiasSeleccionadas.delete(nombre);
-    recargarMateriasDesdeBackend();
-  } else {
-    mostrarError("No se pudo eliminar la materia");
-  }
+function eliminarMateriaLocal(nombreCodificado) {
+  const nombre = decodeURIComponent(nombreCodificado);
+  todasLasMaterias = todasLasMaterias.filter(m => m.nombre !== nombre);
+  materiasSeleccionadas.delete(nombre);
+  renderizarListaMaterias();
+  recalcularCombinaciones();
 }
 
-async function enviarJSON() {
+function enviarJSON() {
   const raw = document.getElementById("json-input").value;
   try {
     const data = JSON.parse(raw);
-    const res = await fetch("/api/materias/importar-json", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      mostrarError(err.detail || "Error al procesar el JSON");
+    if (!Array.isArray(data)) {
+      mostrarError("El JSON debe ser una lista de materias.");
       return;
     }
-
+    todasLasMaterias = data;
     materiasSeleccionadas.clear();
-    recargarMateriasDesdeBackend();
+
+    mapaColoresMaterias = {};
+    todasLasMaterias.forEach((m, idx) => {
+      mapaColoresMaterias[m.nombre] = COLORES[idx % COLORES.length];
+    });
+
+    renderizarListaMaterias();
+    recalcularCombinaciones();
+    document.getElementById("json-input").value = "";
+    mostrarInfo("Materias importadas exitosamente desde JSON.");
   } catch (e) {
     mostrarError("Formato JSON inválido.");
   }
@@ -306,49 +299,46 @@ function actualizarVistaCombinacion() {
   const horarioActual = combinaciones[indiceActual];
 
   horarioActual.forEach(item => {
-        const color = mapaColoresMaterias[item.materia] || "bg-slate-700 border-slate-800";
+    const color = mapaColoresMaterias[item.materia] || "bg-slate-700 border-slate-800";
 
-        item.bloques.forEach(bloque => {
-          const col = document.getElementById(`col-${bloque.dia}`);
-          if (!col) return;
+    item.bloques.forEach(bloque => {
+      const col = document.getElementById(`col-${bloque.dia}`);
+      if (!col) return;
 
-          const top = (bloque.inicio - HORA_INICIO) * PX_POR_HORA;
-          const height = (bloque.fin - bloque.inicio) * PX_POR_HORA;
+      const top = (bloque.inicio - HORA_INICIO) * PX_POR_HORA;
+      const height = (bloque.fin - bloque.inicio) * PX_POR_HORA;
 
-          const tarjeta = document.createElement("div");
-          // Dejamos 2px de margen lateral y vertical para que respire
-          tarjeta.className = `materia-card absolute left-1 right-1 rounded border shadow-sm text-white z-10 ${color}`;
-          tarjeta.style.top = `${top + 1}px`;
-          tarjeta.style.minHeight = `${height - 2}px`; // minHeight permite que si el texto es largo no lo corte a machete
-          tarjeta.style.height = `${height - 2}px`;
+      const tarjeta = document.createElement("div");
+      tarjeta.className = `materia-card absolute left-1 right-1 rounded border shadow-sm text-white z-10 ${color}`;
+      tarjeta.style.top = `${top + 1}px`;
+      tarjeta.style.height = `${height - 2}px`;
 
-          // Limpiar nombre largo de profesor
-          let profTexto = item.profesor || "Por Asignar";
-          if (profTexto.includes(",")) {
-            const partes = profTexto.split(",");
-            const apellidos = partes[0].trim().split(" ")[0];
-            const nombres = partes[1].trim().split(" ")[0];
-            profTexto = `${nombres} ${apellidos}`;
-          }
+      let profTexto = item.profesor || "Por Asignar";
+      if (profTexto.includes(",")) {
+        const partes = profTexto.split(",");
+        const apellidos = partes[0].trim().split(" ")[0];
+        const nombres = partes[1].trim().split(" ")[0];
+        profTexto = `${nombres} ${apellidos}`;
+      }
 
-          tarjeta.innerHTML = `
-            <div class="font-bold text-[13.5px] leading-snug text-white tracking-tight mb-0.5">
-              ${item.materia}
-            </div>
-            <div class="text-[11.5px] font-bold text-emerald-100 font-mono leading-tight">
-              NRC: ${item.nrc || "N/A"}
-            </div>
-            <div class="text-[12px] text-amber-300 font-semibold leading-tight mt-0.5">
-              ${profTexto}
-            </div>
-            <div class="text-[11.5px] text-white/95 font-mono font-semibold leading-tight mt-auto pt-1">
-              ${formatearHora(bloque.inicio)} - ${formatearHora(bloque.fin)}
-            </div>
-          `;
+      tarjeta.innerHTML = `
+        <div class="font-bold text-[13.5px] leading-snug text-white tracking-tight mb-0.5">
+          ${item.materia}
+        </div>
+        <div class="text-[11.5px] font-bold text-emerald-100 font-mono leading-tight">
+          NRC: ${item.nrc || "N/A"}
+        </div>
+        <div class="text-[12px] text-amber-300 font-semibold leading-tight mt-0.5">
+          👨‍🏫 ${profTexto}
+        </div>
+        <div class="text-[11.5px] text-white/95 font-mono font-semibold leading-tight mt-auto pt-1">
+          🕒 ${formatearHora(bloque.inicio)} - ${formatearHora(bloque.fin)}
+        </div>
+      `;
 
-          col.appendChild(tarjeta);
-        });
-      });
+      col.appendChild(tarjeta);
+    });
+  });
 }
 
 function exportarCSVActual() {
@@ -385,9 +375,6 @@ function exportarCSVActual() {
   document.body.removeChild(enlace);
 }
 
-initRejilla();
-recargarMateriasDesdeBackend();
-
 async function exportarPDFFull() {
   if (combinaciones.length === 0) {
     mostrarError("No hay un horario generado para exportar.");
@@ -404,7 +391,7 @@ async function exportarPDFFull() {
 
   try {
     const canvas = await html2canvas(calendarioEl, {
-      scale: 2.5, // Mayor nitidez en letras
+      scale: 2.5,
       useCORS: true,
       backgroundColor: "#ffffff",
       scrollY: 0,
@@ -416,7 +403,6 @@ async function exportarPDFFull() {
           clonedCalendar.style.height = "auto";
           clonedCalendar.style.maxHeight = "none";
         }
-        // Asegurar que las tarjetas en el PDF no recorten su texto
         clonedDoc.querySelectorAll(".materia-card").forEach(el => {
           el.style.overflow = "visible";
         });
@@ -430,7 +416,6 @@ async function exportarPDFFull() {
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
 
-    // Encabezado del reporte
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(13);
     pdf.setTextColor(15, 23, 42);
@@ -439,7 +424,7 @@ async function exportarPDFFull() {
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(8.5);
     pdf.setTextColor(100, 116, 139);
-    pdf.text(`Total asignaturas: ${materiasSeleccionadas.size} | Generado automáticamente`, 12, 16);
+    pdf.text(`Total asignaturas: ${materiasSeleccionadas.size} | UCAB`, 12, 16);
 
     const marginX = 8;
     const startY = 19;
@@ -469,3 +454,5 @@ async function exportarPDFFull() {
     btnPdf.innerHTML = textoOriginal;
   }
 }
+
+initRejilla();
