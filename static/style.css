@@ -1,0 +1,50 @@
+/* Tarjeta de horario con salto de línea natural y legibilidad */
+.materia-card {
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  padding: 4px 6px !important;
+  border-radius: 6px !important;
+  line-height: 1.25 !important;
+  
+  /* Permite que el texto continúe abajo sin cortarse */
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  overflow: visible !important; /* Evita que html2canvas rebane las fuentes por la mitad */
+  
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  user-select: none;
+}
+
+.materia-card:hover {
+  transform: scale(1.01);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  z-index: 50 !important;
+}
+
+/* Evitar distorsión de fuentes en canvas */
+.materia-card * {
+  text-rendering: geometricPrecision;
+  white-space: normal !important;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
