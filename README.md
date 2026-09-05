@@ -21,5 +21,42 @@ Herramienta web diseñada para estudiantes universitarios que automatiza la bús
 
 1. **Clonar el repositorio:**
    ```bash
-   git clone [https://github.com/TU_USUARIO/TU_REPOSITORIO.git](https://github.com/TU_USUARIO/TU_REPOSITORIO.git)
+   git clone https://github.com/TU_USUARIO/TU_REPOSITORIO.git
    cd TU_REPOSITORIO
+   ```
+
+2. **Crear y activar el entorno virtual:**
+   
+   En Windows (PowerShell / CMD):
+   ```bash
+   python -m venv venv
+   venv\Scripts\activate
+   ```
+   
+   En Linux o macOS:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Instalar dependencias:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configurar variables de entorno:**
+   Crea un archivo `.env` en la raíz del proyecto basado en `.env.example`:
+   ```env
+   SUPABASE_URL=https://zmvecicbbxbpuhbnexiz.supabase.co/rest/v1
+   SUPABASE_ANON_KEY=tu_clave_anonima_de_supabase_aqui
+   ```
+
+5. **Ejecutar la aplicación:**
+   ```bash
+   python main.py
+   ```
+   Abre tu navegador web e ingresa a [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+---
+
+> ⚠️ **Aviso:** Proyecto de código abierto desarrollado con fines académicos y de optimización estudiantil. No almacena credenciales privadas ni modifica registros en los servidores de la universidad.
