@@ -127,9 +127,8 @@ function renderizarListaMaterias() {
 
     let seccionesHTML = m.secciones.map(s => `
       <div class="text-slate-500 font-mono text-[11px] leading-tight mt-1">
-        <span class="font-bold text-slate-800">NRC ${s.nrc || "N/A"}</span>
-        <span class="text-slate-400">(${s.profesor || "Sin prof."}):</span><br>
-        ${s.bloques.map(b => `${b.dia} ${formatearHora(b.inicio)}-${formatearHora(b.fin)}`).join(", ")}
+        <span class="font-bold text-slate-800">NRC ${s.nrc || "N/A"}</span><br>
+        ${s.bloques.map(b => `${b.dia} ${formatearHora(b.inicio)}-${formatearHora(b.fin)} (${b.profesor || s.profesor || "Sin prof."})`).join(", ")}
       </div>
     `).join("");
 
@@ -312,25 +311,38 @@ async function recalcularCombinaciones() {
 function agregarMateriaManual() {
   const nombre = document.getElementById("mat-nombre").value.trim();
   const secNombre = document.getElementById("sec-nombre").value.trim();
-  const profesor = document.getElementById("sec-profesor").value.trim() || "Por Asignar";
-  const dia = document.getElementById("sec-dia").value;
-  const inicio = parseFloat(document.getElementById("sec-inicio").value);
-  const fin = parseFloat(document.getElementById("sec-fin").value);
+  const filas = [...document.querySelectorAll("#horarios-manuales .horario-manual")];
 
   if (!nombre || !secNombre) {
     mostrarError("Debes llenar el nombre de la materia y de la sección.");
     return;
   }
-  if (inicio >= fin) {
-    mostrarError("La hora de inicio debe ser menor que la hora de fin.");
+  if (filas.length === 0) {
+    mostrarError("Agrega al menos un horario para la sección.");
     return;
+  }
+
+  const bloques = [];
+  for (const fila of filas) {
+    const inicio = parseFloat(fila.querySelector(".horario-inicio").value);
+    const fin = parseFloat(fila.querySelector(".horario-fin").value);
+    if (!Number.isFinite(inicio) || !Number.isFinite(fin) || inicio >= fin) {
+      mostrarError("Cada hora de inicio debe ser menor que su hora de fin.");
+      return;
+    }
+    bloques.push({
+      dia: fila.querySelector(".horario-dia").value,
+      inicio,
+      fin,
+      profesor: fila.querySelector(".horario-profesor").value.trim() || "Por Asignar"
+    });
   }
 
   const nuevaSeccion = {
     nombre: secNombre,
-    nrc: 0,
-    profesor: profesor,
-    bloques: [{ dia: dia, inicio: inicio, fin: fin }]
+    nrc: document.getElementById("sec-nrc").value.trim() || "N/A",
+    profesor: bloques[0].profesor,
+    bloques
   };
 
   const materiaExistente = todasLasMaterias.find(m => m.nombre.toLowerCase() === nombre.toLowerCase());
@@ -348,7 +360,9 @@ function agregarMateriaManual() {
 
   document.getElementById("mat-nombre").value = "";
   document.getElementById("sec-nombre").value = "";
-  document.getElementById("sec-profesor").value = "";
+  document.getElementById("sec-nrc").value = "";
+  document.getElementById("horarios-manuales").innerHTML = "";
+  agregarFilaHorarioManual();
 
   renderizarListaMaterias();
   renderizarBloqueos();
@@ -365,30 +379,94 @@ function eliminarMateria(nombreCodificado) {
   recalcularCombinaciones();
 }
 
-function enviarJSON() {
-  const raw = document.getElementById("json-input").value;
+function agregarFilaHorarioManual() {
+  const contenedor = document.getElementById("horarios-manuales");
+  const fila = document.createElement("div");
+  fila.className = "horario-manual grid grid-cols-2 gap-2 border-t pt-2";
+  fila.innerHTML = `
+    <select class="horario-dia border p-2 text-xs rounded col-span-2">
+      ${DIAS.map(dia => `<option value="${dia}">${dia}</option>`).join("")}
+    </select>
+    <input class="horario-profesor border p-2 text-xs rounded col-span-2" type="text" placeholder="Profesor (opcional)" />
+    <input class="horario-inicio border p-2 text-xs rounded" type="number" step="0.5" min="7" max="21" value="7" aria-label="Hora inicio" />
+    <input class="horario-fin border p-2 text-xs rounded" type="number" step="0.5" min="8" max="22" value="9" aria-label="Hora fin" />
+    <button type="button" class="text-[11px] text-rose-600 hover:underline text-left col-span-2" onclick="this.closest('.horario-manual').remove()">Eliminar horario</button>
+  `;
+  contenedor.appendChild(fila);
+}
+
+function analizarCSV(raw) {
+  const filas = [];
+  let fila = [], campo = "", entreComillas = false;
+  for (let i = 0; i < raw.length; i++) {
+    const caracter = raw[i];
+    if (caracter === '"') {
+      if (entreComillas && raw[i + 1] === '"') { campo += '"'; i++; }
+      else entreComillas = !entreComillas;
+    } else if (caracter === "," && !entreComillas) {
+      fila.push(campo.trim()); campo = "";
+    } else if ((caracter === "\n" || caracter === "\r") && !entreComillas) {
+      if (caracter === "\r" && raw[i + 1] === "\n") i++;
+      fila.push(campo.trim()); campo = "";
+      if (fila.some(valor => valor !== "")) filas.push(fila);
+      fila = [];
+    } else campo += caracter;
+  }
+  if (campo || fila.length) { fila.push(campo.trim()); filas.push(fila); }
+  return filas;
+}
+
+function horaCSVaNumero(valor) {
+  const partes = String(valor).trim().split(":");
+  if (partes.length !== 2) return NaN;
+  return Number(partes[0]) + Number(partes[1]) / 60;
+}
+
+function cargarMateriasImportadas(data, mensaje) {
+  todasLasMaterias = data;
+  materiasSeleccionadas.clear();
+  materiasBloqueadas.clear();
+  mapaColoresMaterias = {};
+  todasLasMaterias.forEach((m, idx) => { mapaColoresMaterias[m.nombre] = COLORES[idx % COLORES.length]; });
+  renderizarListaMaterias();
+  renderizarBloqueos();
+  recalcularCombinaciones();
+  mostrarInfo(mensaje);
+}
+
+async function enviarCSV() {
+  const archivo = document.getElementById("csv-input").files[0];
+  if (!archivo) { mostrarError("Selecciona un archivo CSV."); return; }
   try {
-    const data = JSON.parse(raw);
-    if (!Array.isArray(data)) {
-      mostrarError("El JSON debe ser una lista de materias.");
-      return;
-    }
-    todasLasMaterias = data;
-    materiasSeleccionadas.clear();
-    materiasBloqueadas.clear();
-
-    mapaColoresMaterias = {};
-    todasLasMaterias.forEach((m, idx) => {
-      mapaColoresMaterias[m.nombre] = COLORES[idx % COLORES.length];
+    const filas = analizarCSV(await archivo.text());
+    if (filas.length < 2) throw new Error("El CSV no contiene filas de datos.");
+    const encabezados = filas.shift().map(valor => valor.replace(/^\uFEFF/, "").toLowerCase());
+    const requeridos = ["materia", "nrc", "profesor", "dia", "hora inicio", "hora fin"];
+    if (!requeridos.every(campo => encabezados.includes(campo))) throw new Error("Encabezados inválidos.");
+    const indice = Object.fromEntries(requeridos.map(campo => [campo, encabezados.indexOf(campo)]));
+    const materias = new Map();
+    filas.forEach(fila => {
+      const nombre = fila[indice.materia]?.trim();
+      if (!nombre) return;
+      const nrc = fila[indice.nrc]?.trim() || "N/A";
+      const clave = `${nombre}\u0000${nrc}`;
+      const inicio = horaCSVaNumero(fila[indice["hora inicio"]]);
+      const fin = horaCSVaNumero(fila[indice["hora fin"]]);
+      if (!Number.isFinite(inicio) || !Number.isFinite(fin) || inicio >= fin) throw new Error(`Horario inválido para ${nombre}.`);
+      if (!materias.has(nombre)) materias.set(nombre, { nombre, secciones: [] });
+      let seccion = materias.get(nombre).secciones.find(item => item._clave === clave);
+      if (!seccion) {
+        seccion = { _clave: clave, nombre: `NRC ${nrc}`, nrc, profesor: fila[indice.profesor]?.trim() || "Por Asignar", bloques: [] };
+        materias.get(nombre).secciones.push(seccion);
+      }
+      seccion.bloques.push({ dia: fila[indice.dia]?.trim(), inicio, fin, profesor: fila[indice.profesor]?.trim() || "Por Asignar" });
     });
-
-    renderizarListaMaterias();
-    renderizarBloqueos();
-    recalcularCombinaciones();
-    document.getElementById("json-input").value = "";
-    mostrarInfo("Materias importadas exitosamente desde JSON.");
-  } catch (e) {
-    mostrarError("Formato JSON inválido.");
+    const data = [...materias.values()].map(materia => ({ ...materia, secciones: materia.secciones.map(({ _clave, ...seccion }) => seccion) }));
+    if (!data.length) throw new Error("El CSV no contiene materias válidas.");
+    cargarMateriasImportadas(data, "Materias importadas exitosamente desde CSV.");
+    document.getElementById("csv-input").value = "";
+  } catch (error) {
+    mostrarError(`CSV inválido: ${error.message}`);
   }
 }
 
@@ -442,7 +520,7 @@ function actualizarVistaCombinacion() {
       tarjeta.style.top = `${top + 1}px`;
       tarjeta.style.height = `${height - 2}px`;
 
-      let profTexto = item.profesor || "Por Asignar";
+      let profTexto = b.profesor || item.profesor || "Por Asignar";
       if (profTexto.includes(",")) {
         const partes = profTexto.split(",");
         const apellidos = partes[0].trim().split(" ")[0];
@@ -484,7 +562,7 @@ function exportarCSVActual() {
       filas.push([
         `"${item.materia.replace(/"/g, '""')}"`,
         item.nrc || "N/A",
-        `"${(item.profesor || 'Por Asignar').replace(/"/g, '""')}"`,
+        `"${(b.profesor || item.profesor || 'Por Asignar').replace(/"/g, '""')}"`,
         b.dia,
         formatearHora(b.inicio),
         formatearHora(b.fin)
@@ -614,6 +692,7 @@ async function exportarPDFFull() {
 
 // Inicializa la cuadrícula limpia al cargar la página
 initRejilla();
+agregarFilaHorarioManual();
 
 // Listener para el switch de filtro
 const switchProfesor = document.getElementById("filtro-mismo-profesor");

@@ -248,7 +248,8 @@ async def calcular_combinaciones(request: Request):
                         bloques_procesados.append({
                             "dia": dia,
                             "inicio": inicio,
-                            "fin": fin
+                            "fin": fin,
+                            "profesor": str(b.get("profesor", sec.get("profesor", "Por Asignar")))
                         })
                 except (ValueError, TypeError):
                     continue

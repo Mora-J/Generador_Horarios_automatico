@@ -8,6 +8,8 @@ Herramienta web diseñada para estudiantes universitarios que automatiza la bús
 - **Detección de Códigos NRC:** Muestra los códigos de inscripción (NRC/CRN), profesor asignado y horas exactas.
 - **Resolución de Conflictos:** Algoritmo de producto cartesiano con validación de restricciones temporales para descartar solapamientos de clases.
 - **Filtrado Dinámico:** Selector interactivo para calcular opciones únicamente con las materias que deseas inscribir.
+- **Carga manual:** Permite indicar un NRC opcional y varios horarios, cada uno con su profesor.
+- **Carga masiva:** Importa CSV usando el mismo formato de la exportación: `Materia,NRC,Profesor,Dia,Hora Inicio,Hora Fin`. Las filas con la misma materia y NRC se agrupan en una sección con varios horarios.
 - **Exportación:**
   - Descarga en **CSV** con la lista consolidada de materias, profesores y códigos NRC.
   - Generación de **PDF** en formato horizontal con la cuadrícula completa del horario.
