@@ -483,6 +483,34 @@ function exportarCSVActual() {
   document.body.removeChild(enlace);
 }
 
+async function copiarNRCActual() {
+  if (combinaciones.length === 0) {
+    mostrarError("No hay combinación de horario activa para copiar.");
+    return;
+  }
+
+  const horarioActual = combinaciones[indiceActual];
+  const textoNRC = horarioActual
+    .map(item => `${item.materia}: ${item.nrc || "N/A"}`)
+    .join("\n");
+
+  try {
+    await navigator.clipboard.writeText(textoNRC);
+    mostrarInfo("NRC copiados al portapapeles.");
+  } catch (error) {
+    const blob = new Blob([textoNRC], { type: "text/plain;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement("a");
+    enlace.href = url;
+    enlace.download = `nrc_opcion_${indiceActual + 1}.txt`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    document.body.removeChild(enlace);
+    URL.revokeObjectURL(url);
+    mostrarInfo("No se pudo copiar; se descargó la lista de NRC en TXT.");
+  }
+}
+
 async function exportarPDFFull() {
   if (combinaciones.length === 0) {
     mostrarError("No hay un horario generado para exportar.");
