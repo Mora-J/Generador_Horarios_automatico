@@ -27,30 +27,8 @@ def normalizar_nombre_materia(nombre: str) -> str:
     return re.sub(r"\s+", " ", n).strip()
 
 def son_mismo_profesor(p1_raw: str, p2_raw: str) -> bool:
-    p1 = limpiar_texto(p1_raw)
-    p2 = limpiar_texto(p2_raw)
-
-    indefinidos = ["POR ASIGNAR", "SIN PROFESOR", "SIN PROF", "N/A"]
-    # Si alguno está por asignar o vacío, no bloqueamos para evitar falsos negativos
-    if not p1 or not p2:
-        return True
-    if any(ind in p1 for ind in indefinidos) or any(ind in p2 for ind in indefinidos):
-        return True
-
-    # Si son idénticos
-    if p1 == p2:
-        return True
-
-    # Extraer palabras de 3 o más letras (apellidos y nombres)
-    t1 = set(re.findall(r"\b[A-Z]{3,}\b", p1))
-    t2 = set(re.findall(r"\b[A-Z]{3,}\b", p2))
-
-    stop_words = {"PROF", "ING", "LIC", "DOC", "SAN", "DEL", "LOS", "LAS"}
-    t1 -= stop_words
-    t2 -= stop_words
-
-    interseccion = t1.intersection(t2)
-    return len(interseccion) > 0
+    # Mantener una sola regla de comparación para evitar aceptar solo el apellido.
+    return profesores_coinciden(p1_raw, p2_raw)
 
 def extraer_apellidos_y_nombres(texto_prof: str) -> Tuple[set, set]:
     """
