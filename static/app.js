@@ -166,7 +166,6 @@ function seleccionarTodas(marcar) {
 }
 
 async function recalcularCombinaciones() {
-  // 1. Filtrar los objetos completos de las materias seleccionadas
   const materiasParaEnviar = todasLasMaterias.filter(m => materiasSeleccionadas.has(m.nombre));
 
   if (materiasParaEnviar.length === 0) {
@@ -176,43 +175,40 @@ async function recalcularCombinaciones() {
     return;
   }
 
-  // Sanitizar los datos para asegurar que los tipos sean exactamente los esperados por FastAPI
-  const payloadLimpio = materiasParaEnviar.map(m => ({
-    nombre: String(m.nombre),
-    secciones: (m.secciones || []).map(s => ({
-      nombre: String(s.nombre || "Sin Sección"),
-      nrc: s.nrc !== undefined && s.nrc !== null ? String(s.nrc) : "N/A",
-      profesor: String(s.profesor || "Por Asignar"),
-      bloques: (s.bloques || []).map(b => ({
-        dia: String(b.dia),
-        inicio: parseFloat(b.inicio),
-        fin: parseFloat(b.fin)
-      }))
-    }))
-  }));
+  const checkEl = document.getElementById("filtro-mismo-profesor");
+  const mismoProfesorActivo = !!(checkEl && checkEl.checked);
+
+  console.log("%c[FRONTEND] Enviando a /api/combinaciones:", "color: #2563eb; font-weight: bold;");
+  console.log("-> mismo_profesor:", mismoProfesorActivo);
+
+  const payload = {
+    materias: materiasParaEnviar,
+    mismo_profesor: mismoProfesorActivo
+  };
 
   try {
     const resCombos = await fetch("/api/combinaciones", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payloadLimpio)
+      body: JSON.stringify(payload)
     });
 
     if (!resCombos.ok) {
-      const errData = await resCombos.json();
-      console.error("Detalle del error 422:", errData);
-      mostrarError("Error de validación al calcular combinaciones.");
+      console.error("El servidor respondió con error:", resCombos.status);
+      mostrarError("Error al calcular combinaciones en el servidor.");
       return;
     }
 
     const dataCombos = await resCombos.json();
-    combinaciones = dataCombos.combinaciones || [];
+    
+    // Protección contra null o undefined
+    combinaciones = (dataCombos && dataCombos.combinaciones) ? dataCombos.combinaciones : [];
     indiceActual = 0;
 
     actualizarVistaCombinacion();
   } catch (err) {
-    console.error("Error de red:", err);
-    mostrarError("Error al conectar con el servidor.");
+    console.error("Error capturado:", err);
+    mostrarError("Error al calcular combinaciones.");
   }
 }
 
@@ -488,3 +484,11 @@ async function exportarPDFFull() {
 
 // Inicializa la cuadrícula limpia al cargar la página
 initRejilla();
+
+// Listener para el switch de filtro
+const switchProfesor = document.getElementById("filtro-mismo-profesor");
+if (switchProfesor) {
+  switchProfesor.addEventListener("change", () => {
+    recalcularCombinaciones();
+  });
+}

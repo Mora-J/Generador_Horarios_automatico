@@ -104,6 +104,22 @@
         <div id="lista-materias" class="space-y-2 overflow-y-auto flex-1 pr-1"></div>
       </div>
 
+      <!-- Filtro: Mismo profesor en Teoría y Práctica -->
+      <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 my-2.5 flex items-center justify-between">
+        <div>
+          <span class="text-xs font-bold text-slate-800 block">Teoría y Práctica con mismo profesor</span>
+          <span class="text-[11px] text-slate-500 block leading-tight">Empareja el docente en materias con práctica o lab</span>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer select-none">
+          <input 
+            type="checkbox" 
+            id="filtro-mismo-profesor" 
+            class="sr-only peer"
+          >
+          <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+
       <!-- Pie del panel lateral -->
       <div class="pt-3 border-t border-slate-200 mt-auto text-center">
         <a 
