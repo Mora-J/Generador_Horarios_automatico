@@ -520,7 +520,7 @@ function actualizarVistaCombinacion() {
       tarjeta.style.top = `${top + 1}px`;
       tarjeta.style.height = `${height - 2}px`;
 
-      let profTexto = b.profesor || item.profesor || "Por Asignar";
+      let profTexto = bloque.profesor || item.profesor || "Por Asignar";
       if (profTexto.includes(",")) {
         const partes = profTexto.split(",");
         const apellidos = partes[0].trim().split(" ")[0];
