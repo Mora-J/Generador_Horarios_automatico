@@ -19,6 +19,7 @@ let materiasSeleccionadas = new Set();
 let combinaciones = [];
 let indiceActual = 0;
 let mapaColoresMaterias = {};
+let materiasBloqueadas = new Map();
 
 function initRejilla() {
   const colHoras = document.getElementById("columna-horas");
@@ -90,6 +91,7 @@ async function cargarPorCedula() {
     // Guardar las materias que envió el backend
     todasLasMaterias = data.materias || [];
     materiasSeleccionadas.clear();
+    materiasBloqueadas.clear();
 
     // Asignar colores fijos por materia
     mapaColoresMaterias = {};
@@ -99,6 +101,7 @@ async function cargarPorCedula() {
 
     // Renderizar la lista en el panel lateral y resetear vista
     renderizarListaMaterias();
+    renderizarBloqueos();
     await recalcularCombinaciones();
 
     mostrarInfo(`Se cargaron ${data.total_cargadas} materias. Selecciona las que deseas cursar.`);
@@ -149,9 +152,11 @@ function toggleMateria(nombreCodificado) {
   const nombre = decodeURIComponent(nombreCodificado);
   if (materiasSeleccionadas.has(nombre)) {
     materiasSeleccionadas.delete(nombre);
+    materiasBloqueadas.delete(nombre);
   } else {
     materiasSeleccionadas.add(nombre);
   }
+  renderizarBloqueos();
   recalcularCombinaciones();
 }
 
@@ -160,9 +165,71 @@ function seleccionarTodas(marcar) {
     todasLasMaterias.forEach(m => materiasSeleccionadas.add(m.nombre));
   } else {
     materiasSeleccionadas.clear();
+    materiasBloqueadas.clear();
   }
   renderizarListaMaterias();
+  renderizarBloqueos();
   recalcularCombinaciones();
+}
+
+function seccionTieneMismaIdentidad(seccionFijada, seccionEnHorario) {
+  return String(seccionFijada.nrc ?? "N/A") === String(seccionEnHorario.nrc ?? "N/A")
+    && String(seccionFijada.nombre ?? "Sin Sección") === String(seccionEnHorario.seccion ?? "Sin Sección");
+}
+
+function renderizarBloqueos() {
+  const contenedor = document.getElementById("bloqueos-materias");
+  if (!contenedor) return;
+
+  contenedor.innerHTML = "";
+  const materiasParaBloquear = todasLasMaterias.filter(m => materiasSeleccionadas.has(m.nombre));
+
+  if (materiasParaBloquear.length === 0) {
+    contenedor.innerHTML = '<p class="text-[11px] text-slate-500">Selecciona materias para fijar sus secciones.</p>';
+    return;
+  }
+
+  materiasParaBloquear.forEach(materia => {
+    const fila = document.createElement("label");
+    fila.className = "flex items-center gap-2 text-xs";
+
+    const nombre = document.createElement("span");
+    nombre.className = "font-semibold text-slate-700 min-w-0 flex-1 truncate";
+    nombre.textContent = `${materia.nombre}:`;
+
+    const selector = document.createElement("select");
+    selector.className = "w-52 border border-slate-200 rounded px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+    const opcionLibre = document.createElement("option");
+    opcionLibre.value = "";
+    opcionLibre.textContent = "Sin sección fija";
+    selector.appendChild(opcionLibre);
+
+    materia.secciones.forEach((seccion, indice) => {
+      const opcion = document.createElement("option");
+      opcion.value = String(indice);
+      opcion.textContent = `${seccion.nombre || "Sin sección"} · NRC ${seccion.nrc || "N/A"}`;
+      selector.appendChild(opcion);
+    });
+
+    const indiceBloqueado = materiasBloqueadas.get(materia.nombre);
+    if (indiceBloqueado !== undefined && indiceBloqueado < materia.secciones.length) {
+      selector.value = String(indiceBloqueado);
+    }
+
+    selector.addEventListener("change", () => {
+      if (selector.value === "") {
+        materiasBloqueadas.delete(materia.nombre);
+      } else {
+        materiasBloqueadas.set(materia.nombre, Number(selector.value));
+      }
+      recalcularCombinaciones();
+    });
+
+    fila.appendChild(nombre);
+    fila.appendChild(selector);
+    contenedor.appendChild(fila);
+  });
 }
 
 async function recalcularCombinaciones() {
@@ -202,7 +269,17 @@ async function recalcularCombinaciones() {
     const dataCombos = await resCombos.json();
     
     // Protección contra null o undefined
-    combinaciones = (dataCombos && dataCombos.combinaciones) ? dataCombos.combinaciones : [];
+    const combinacionesCalculadas = (dataCombos && dataCombos.combinaciones) ? dataCombos.combinaciones : [];
+    combinaciones = combinacionesCalculadas.filter(horario => {
+      return materiasParaEnviar.every(materia => {
+        const indiceBloqueado = materiasBloqueadas.get(materia.nombre);
+        if (indiceBloqueado === undefined) return true;
+
+        const seccionFijada = materia.secciones[indiceBloqueado];
+        const seccionEnHorario = horario.find(item => item.materia === materia.nombre);
+        return seccionFijada && seccionEnHorario && seccionTieneMismaIdentidad(seccionFijada, seccionEnHorario);
+      });
+    });
     indiceActual = 0;
 
     actualizarVistaCombinacion();
@@ -254,6 +331,7 @@ function agregarMateriaManual() {
   document.getElementById("sec-profesor").value = "";
 
   renderizarListaMaterias();
+  renderizarBloqueos();
   recalcularCombinaciones();
 }
 
@@ -261,7 +339,9 @@ function eliminarMateria(nombreCodificado) {
   const nombre = decodeURIComponent(nombreCodificado);
   todasLasMaterias = todasLasMaterias.filter(m => m.nombre !== nombre);
   materiasSeleccionadas.delete(nombre);
+  materiasBloqueadas.delete(nombre);
   renderizarListaMaterias();
+  renderizarBloqueos();
   recalcularCombinaciones();
 }
 
@@ -275,6 +355,7 @@ function enviarJSON() {
     }
     todasLasMaterias = data;
     materiasSeleccionadas.clear();
+    materiasBloqueadas.clear();
 
     mapaColoresMaterias = {};
     todasLasMaterias.forEach((m, idx) => {
@@ -282,6 +363,7 @@ function enviarJSON() {
     });
 
     renderizarListaMaterias();
+    renderizarBloqueos();
     recalcularCombinaciones();
     document.getElementById("json-input").value = "";
     mostrarInfo("Materias importadas exitosamente desde JSON.");
