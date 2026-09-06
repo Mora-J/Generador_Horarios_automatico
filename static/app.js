@@ -119,7 +119,7 @@ function renderizarListaMaterias() {
   const cont = document.getElementById("lista-materias");
   cont.innerHTML = "";
 
-  todasLasMaterias.forEach(m => {
+  const crearTarjetaMateria = (m) => {
     const card = document.createElement("div");
     card.className = "border rounded p-2.5 bg-white text-xs shadow-xs space-y-1.5";
 
@@ -143,8 +143,29 @@ function renderizarListaMaterias() {
       </div>
       <div class="pl-5 border-l-2 border-slate-100">${seccionesHTML}</div>
     `;
-    cont.appendChild(card);
-  });
+    return card;
+  };
+
+  const materiasElectivas = todasLasMaterias.filter(m => /^electiva\s*:/i.test(m.nombre.trim()));
+  const materiasRegulares = todasLasMaterias.filter(m => !/^electiva\s*:/i.test(m.nombre.trim()));
+
+  materiasRegulares.forEach(m => cont.appendChild(crearTarjetaMateria(m)));
+
+  if (materiasElectivas.length > 0) {
+    const desplegable = document.createElement("details");
+    desplegable.className = "border border-amber-200 rounded-lg bg-amber-50 p-2";
+
+    const resumen = document.createElement("summary");
+    resumen.className = "cursor-pointer select-none text-xs font-bold text-amber-900";
+    resumen.textContent = `Electivas (${materiasElectivas.length})`;
+    desplegable.appendChild(resumen);
+
+    const listaElectivas = document.createElement("div");
+    listaElectivas.className = "space-y-2 mt-2";
+    materiasElectivas.forEach(m => listaElectivas.appendChild(crearTarjetaMateria(m)));
+    desplegable.appendChild(listaElectivas);
+    cont.appendChild(desplegable);
+  }
 }
 
 function toggleMateria(nombreCodificado) {
