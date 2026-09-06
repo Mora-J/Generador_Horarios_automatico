@@ -1,4 +1,70 @@
 /* Tarjeta de horario con salto de línea natural y legibilidad */
+#panel-lateral {
+  flex: 0 0 auto;
+  min-width: 280px;
+  max-width: 55vw;
+}
+
+.separador-panel {
+  position: relative;
+  flex: 0 0 12px;
+  cursor: col-resize;
+  background: #cbd5e1;
+  border-right: 1px solid #cbd5e1;
+  border-left: 1px solid #cbd5e1;
+  transition: background-color 0.15s ease;
+}
+
+.separador-panel::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #64748b;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 -7px #64748b, 0 7px #64748b;
+}
+
+.separador-panel:hover,
+.redimensionando-panel .separador-panel {
+  background: #3b82f6;
+}
+
+.redimensionando-panel {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.redimensionando-panel * {
+  cursor: col-resize !important;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+.icono-desplegable {
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-3px);
+  transition: transform 0.15s ease;
+}
+
+details[open] .icono-desplegable {
+  transform: rotate(225deg) translate(-1px, -1px);
+}
+
+@media (max-width: 768px) {
+  .separador-panel {
+    display: none;
+  }
+}
+
 .materia-card {
   box-sizing: border-box !important;
   display: flex !important;

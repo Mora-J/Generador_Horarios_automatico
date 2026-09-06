@@ -127,8 +127,7 @@ function renderizarListaMaterias() {
 
     let seccionesHTML = m.secciones.map(s => `
       <div class="text-slate-500 font-mono text-[11px] leading-tight mt-1">
-        <span class="font-bold text-slate-800">NRC ${s.nrc || "N/A"}</span> • 
-        <span class="font-semibold text-slate-700">${s.nombre}</span> 
+        <span class="font-bold text-slate-800">NRC ${s.nrc || "N/A"}</span>
         <span class="text-slate-400">(${s.profesor || "Sin prof."}):</span><br>
         ${s.bloques.map(b => `${b.dia} ${formatearHora(b.inicio)}-${formatearHora(b.fin)}`).join(", ")}
       </div>
@@ -208,7 +207,7 @@ function renderizarBloqueos() {
     materia.secciones.forEach((seccion, indice) => {
       const opcion = document.createElement("option");
       opcion.value = String(indice);
-      opcion.textContent = `${seccion.nombre || "Sin sección"} · NRC ${seccion.nrc || "N/A"}`;
+      opcion.textContent = `NRC ${seccion.nrc || "N/A"}`;
       selector.appendChild(opcion);
     });
 
@@ -572,5 +571,33 @@ const switchProfesor = document.getElementById("filtro-mismo-profesor");
 if (switchProfesor) {
   switchProfesor.addEventListener("change", () => {
     recalcularCombinaciones();
+  });
+}
+
+// Permite ajustar el ancho del panel lateral como en una aplicación de escritorio.
+const panelLateral = document.getElementById("panel-lateral");
+const separadorPanel = document.getElementById("separador-panel");
+if (panelLateral && separadorPanel) {
+  let redimensionando = false;
+
+  separadorPanel.addEventListener("mousedown", (evento) => {
+    redimensionando = true;
+    document.body.classList.add("redimensionando-panel");
+    evento.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (evento) => {
+    if (!redimensionando) return;
+
+    const anchoMinimo = 280;
+    const anchoMaximo = Math.min(window.innerWidth * 0.55, 720);
+    const nuevoAncho = Math.max(anchoMinimo, Math.min(evento.clientX, anchoMaximo));
+    panelLateral.style.width = `${nuevoAncho}px`;
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (!redimensionando) return;
+    redimensionando = false;
+    document.body.classList.remove("redimensionando-panel");
   });
 }
